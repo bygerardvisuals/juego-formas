@@ -1,19 +1,21 @@
 // =====================================================================
 // JUEGO DE FORMAS  -  p5.js + OpenCV.js
 //
+// IDEA: la cámara mira cada casilla y CUENTA cuántos puntos negros hay.
+//   pocos puntos negros      -> casilla vacía
+//   algunos                  -> triángulo (la pieza más pequeña)
+//   más                      -> círculo
+//   muchos                   -> cuadrado  (la pieza más grande)
+// Para que funcione, las tres piezas tienen que medir lo mismo de ancho.
+//
 // DOCUMENTACIÓN OFICIAL
-// p5.js (dibujo y cámara)
-//   Referencia completa ....... https://p5js.org/reference/
-//   Cámara: createCapture ..... https://p5js.org/reference/p5/createCapture/
-//   Objeto de la cámara ....... https://p5js.org/reference/p5/p5.MediaElement/
-//   Leer píxeles: loadPixels .. https://p5js.org/reference/p5/loadPixels/
-// OpenCV.js (detección)
-//   Todos los tutoriales ...... https://docs.opencv.org/4.x/d5/d10/tutorial_js_root.html
-//   Cargar OpenCV.js .......... https://docs.opencv.org/4.x/d0/d84/tutorial_js_usage.html
-//   Imágenes (Mat, roi) ....... https://docs.opencv.org/4.x/de/d06/tutorial_js_basic_ops.html
-//   Gris y umbral (índice) .... https://docs.opencv.org/4.x/d2/df0/tutorial_js_table_of_contents_imgproc.html
-//   Buscar contornos .......... https://docs.opencv.org/4.x/d5/daa/tutorial_js_contours_begin.html
-//   Área y esquinas ........... https://docs.opencv.org/4.x/dc/dcf/tutorial_js_contour_features.html
+//   p5.js, todo ............... https://p5js.org/reference/
+//   p5.js, cámara ............. https://p5js.org/reference/p5/createCapture/
+//   p5.js, leer píxeles ....... https://p5js.org/reference/p5/loadPixels/
+//   OpenCV.js, tutoriales ..... https://docs.opencv.org/4.x/d5/d10/tutorial_js_root.html
+//   OpenCV.js, cómo cargarlo .. https://docs.opencv.org/4.x/d0/d84/tutorial_js_usage.html
+//   OpenCV.js, imágenes ....... https://docs.opencv.org/4.x/de/d06/tutorial_js_basic_ops.html
+//   OpenCV.js, gris y umbral .. https://docs.opencv.org/4.x/d2/df0/tutorial_js_table_of_contents_imgproc.html
 // =====================================================================
 
 
@@ -21,173 +23,120 @@
 // 1. NÚMEROS QUE PUEDES CAMBIAR
 // ---------------------------------------------------------------------
 
-// Pon true para ver la cámara y lo que detecta. Pon false para jugar.
+// true = ver la cámara y los números.  false = jugar.
 let modoPrueba = true;
 
-// Lo más oscuro que este número (de 0 a 255) es "pieza".
-// Si no ve las piezas, súbelo. Si ve sombras, bájalo.
+// Lo más oscuro que este número (de 0 a 255) cuenta como punto negro.
 let umbral = 80;
 
-// Tamaño de una pieza vista por la cámara, en píxeles.
-// Más pequeño que areaMinima = suciedad, se ignora.
-// Más grande que areaMaxima = no es una pieza, se ignora.
-let areaMinima = 1500;
-let areaMaxima = 20000;
-
-// Cuánto se "redondea" la silueta antes de contar sus esquinas.
-// Si un círculo sale como cuadrado, bájalo.
-// Si un cuadrado sale como círculo, súbelo.
-let tolerancia = 10;
+// Cuántos puntos negros hacen falta para cada forma.
+// Pon modoPrueba = true, coloca cada pieza y mira qué número sale.
+let desdeTriangulo = 1500;    // menos que esto: casilla vacía
+let desdeCirculo = 5000;
+let desdeCuadrado = 7200;
+let demasiado = 10000;        // más que esto: no es una pieza (una mano, una sombra)
 
 // Gris de una casilla apagada (0 = negro, 255 = blanco).
-// No puede ser negro del todo: la cámara ve las piezas negras gracias
-// a la luz del proyector que hay detrás. Si no las ve, súbelo.
+// No puede ser negro del todo o la cámara no vería las piezas.
 let brilloCasillaApagada = 60;
 
-// Dónde se DIBUJA cada casilla en la proyección (píxeles de pantalla).
-// Estos números son para un proyector de 1280 x 720.
-let casillasPantalla = [
-  { x: 20,  y: 20,  ancho: 600, alto: 320 },   // casilla 1
-  { x: 660, y: 20,  ancho: 600, alto: 320 },   // casilla 2
-  { x: 20,  y: 380, ancho: 600, alto: 320 },   // casilla 3
-  { x: 660, y: 380, ancho: 600, alto: 320 }    // casilla 4
-];
+// Dónde se DIBUJA cada casilla (casilla 1, 2, 3 y 4)
+let casillaX = [20, 660, 20, 660];
+let casillaY = [20, 20, 380, 380];
+let casillaAncho = 600;
+let casillaAlto = 320;
 
-// Dónde VE la cámara cada casilla (píxeles de cámara, de 640 x 480).
-// Cada zona tiene que quedar un poco por dentro de su casilla.
-let zonasCamara = [
-  { x: 100, y: 40,  ancho: 200, alto: 180 },   // casilla 1
-  { x: 340, y: 40,  ancho: 200, alto: 180 },   // casilla 2
-  { x: 100, y: 260, ancho: 200, alto: 180 },   // casilla 3
-  { x: 340, y: 260, ancho: 200, alto: 180 }    // casilla 4
-];
+// Dónde VE la cámara cada casilla (casilla 1, 2, 3 y 4)
+let zonaX = [100, 340, 100, 340];
+let zonaY = [40, 40, 260, 260];
+let zonaAncho = 200;
+let zonaAlto = 180;
 
 
 // ---------------------------------------------------------------------
 // 2. COSAS QUE EL JUEGO RECUERDA
 // ---------------------------------------------------------------------
 
-let captura;                                            // la cámara
+let captura;
 let formasPosibles = ["triángulo", "cuadrado", "círculo"];
-let formasObjetivo = [];                                // la forma secreta de cada casilla
-let formasDetectadas = ["ninguna", "ninguna", "ninguna", "ninguna"];
+let formasSecretas = ["", "", "", ""];
+let formasVistas = ["ninguna", "ninguna", "ninguna", "ninguna"];
+let puntosNegros = [0, 0, 0, 0];
 
 
 // ---------------------------------------------------------------------
-// 3. AL EMPEZAR (se ejecuta una sola vez)
-//    https://p5js.org/reference/p5/setup/
+// 3. AL EMPEZAR (una sola vez)
 // ---------------------------------------------------------------------
 
 function setup() {
   createCanvas(1280, 720);
   textSize(16);
 
-  // Encender la cámara
-  // https://p5js.org/reference/p5/createCapture/
-  // "environment" = la cámara de atrás del móvil.
-  // En un ordenador se usa la cámara que haya.
+  // Encender la cámara de atrás del móvil (o la del ordenador)
   captura = createCapture({ audio: false, video: { facingMode: "environment" } });
   captura.size(640, 480);
   captura.hide();
 
-  // Elegir una forma secreta al azar para cada casilla
-  // https://p5js.org/reference/p5/random/
-  for (let i = 0; i < 4; i++) {
-    formasObjetivo[i] = random(formasPosibles);
-  }
+  // Elegir las cuatro formas secretas al azar
+  formasSecretas[0] = random(formasPosibles);
+  formasSecretas[1] = random(formasPosibles);
+  formasSecretas[2] = random(formasPosibles);
+  formasSecretas[3] = random(formasPosibles);
 }
 
 
 // ---------------------------------------------------------------------
-// 4. TODO EL RATO (se repite muchas veces por segundo)
-//    https://p5js.org/reference/p5/draw/
+// 4. TODO EL RATO (muchas veces por segundo)
 // ---------------------------------------------------------------------
 
 function draw() {
 
-  // OpenCV.js tarda unos segundos en estar listo. Mientras, no hacemos nada.
-  // https://docs.opencv.org/4.x/d0/d84/tutorial_js_usage.html
+  // Esperar a que OpenCV.js esté listo
   if (!cv.Mat) {
     return;
   }
 
-  // ---- PASO 1: mirar por la cámara ----
-  // https://p5js.org/reference/p5/loadPixels/
+  // ---- PASO 1: hacer una foto con la cámara ----
   captura.loadPixels();
 
   if (captura.pixels.length > 0) {
 
-    // Dar la foto de la cámara a OpenCV. Un "Mat" es una imagen de OpenCV.
-    // https://docs.opencv.org/4.x/de/d06/tutorial_js_basic_ops.html
-    let imagenCamara = cv.matFromArray(480, 640, cv.CV_8UC4, captura.pixels);
+    // Dar la foto a OpenCV
+    let foto = cv.matFromArray(480, 640, cv.CV_8UC4, captura.pixels);
 
-    // Convertirla a blanco y negro con grises (cvtColor)
-    // y después a solo blanco o negro (threshold):
-    // lo oscuro (las piezas) queda blanco y todo lo demás negro.
-    // https://docs.opencv.org/4.x/d2/df0/tutorial_js_table_of_contents_imgproc.html
-    let imagenGris = new cv.Mat();
-    cv.cvtColor(imagenCamara, imagenGris, cv.COLOR_RGBA2GRAY);
-    let imagenBinaria = new cv.Mat();
-    cv.threshold(imagenGris, imagenBinaria, umbral, 255, cv.THRESH_BINARY_INV);
+    // Pasarla a grises
+    cv.cvtColor(foto, foto, cv.COLOR_RGBA2GRAY);
 
-    // ---- PASO 2: mirar las cuatro casillas, una por una ----
+    // Lo oscuro (las piezas) se vuelve blanco y todo lo demás negro
+    cv.threshold(foto, foto, umbral, 255, cv.THRESH_BINARY_INV);
+
+    // ---- PASO 2: mirar las cuatro casillas ----
     for (let i = 0; i < 4; i++) {
 
       // Recortar el trozo de foto de esta casilla
-      let zona = zonasCamara[i];
-      let recorte = imagenBinaria.roi(new cv.Rect(zona.x, zona.y, zona.ancho, zona.alto));
+      let recorte = foto.roi(new cv.Rect(zonaX[i], zonaY[i], zonaAncho, zonaAlto));
 
-      // Buscar las siluetas que hay en el recorte
-      // https://docs.opencv.org/4.x/d5/daa/tutorial_js_contours_begin.html
-      let contornos = new cv.MatVector();
-      let jerarquia = new cv.Mat();
-      cv.findContours(recorte, contornos, jerarquia, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+      // Contar los puntos de la pieza
+      puntosNegros[i] = cv.countNonZero(recorte);
 
-      // De momento, la casilla está vacía
-      formasDetectadas[i] = "ninguna";
+      // Decidir qué forma es según cuántos puntos hay
+      formasVistas[i] = "ninguna";
+      if (puntosNegros[i] > desdeTriangulo) { formasVistas[i] = "triángulo"; }
+      if (puntosNegros[i] > desdeCirculo)   { formasVistas[i] = "círculo"; }
+      if (puntosNegros[i] > desdeCuadrado)  { formasVistas[i] = "cuadrado"; }
+      if (puntosNegros[i] > demasiado)      { formasVistas[i] = "ninguna"; }
 
-      // Mirar cada silueta
-      for (let j = 0; j < contornos.size(); j++) {
-        let contorno = contornos.get(j);
-
-        // ¿Tiene tamaño de pieza?
-        // https://docs.opencv.org/4.x/dc/dcf/tutorial_js_contour_features.html
-        let area = cv.contourArea(contorno);
-        if (area > areaMinima && area < areaMaxima) {
-
-          // Contar las esquinas de la silueta
-          let poligono = new cv.Mat();
-          cv.approxPolyDP(contorno, poligono, tolerancia, true);
-          let esquinas = poligono.rows;
-
-          if (esquinas == 3) {
-            formasDetectadas[i] = "triángulo";
-          } else if (esquinas == 4) {
-            formasDetectadas[i] = "cuadrado";
-          } else {
-            formasDetectadas[i] = "círculo";
-          }
-
-          poligono.delete();
-        }
-        contorno.delete();
-      }
-
-      // OpenCV no limpia solo: hay que borrar cada imagen al terminar
+      // OpenCV no limpia solo: hay que borrar lo que ya no se usa
       recorte.delete();
-      contornos.delete();
-      jerarquia.delete();
     }
 
-    imagenCamara.delete();
-    imagenGris.delete();
-    imagenBinaria.delete();
+    foto.delete();
   }
 
-  // ---- PASO 3: contar los aciertos ----
+  // ---- PASO 3: contar aciertos ----
   let aciertos = 0;
   for (let i = 0; i < 4; i++) {
-    if (formasDetectadas[i] == formasObjetivo[i]) {
+    if (formasVistas[i] == formasSecretas[i]) {
       aciertos = aciertos + 1;
     }
   }
@@ -199,43 +148,36 @@ function draw() {
     // ¡Victoria! Todo verde
     background(0, 255, 0);
   } else {
-    // Dibujar las cuatro casillas
     background(0);
     for (let i = 0; i < 4; i++) {
-      if (formasDetectadas[i] == formasObjetivo[i]) {
+      if (formasVistas[i] == formasSecretas[i]) {
         fill(0, 255, 0);               // acierto: verde
       } else {
         fill(brilloCasillaApagada);    // vacía o equivocada: oscura
       }
-      let casilla = casillasPantalla[i];
-      // https://p5js.org/reference/p5/rect/
-      rect(casilla.x, casilla.y, casilla.ancho, casilla.alto);
+      rect(casillaX[i], casillaY[i], casillaAncho, casillaAlto);
     }
   }
 
-  // ---- PASO 5: modo prueba (solo si modoPrueba es true) ----
+  // ---- PASO 5: modo prueba ----
   if (modoPrueba) {
-    // Dibujar lo que ve la cámara
-    // https://p5js.org/reference/p5/image/
     image(captura, 0, 0);
 
     for (let i = 0; i < 4; i++) {
-      let zona = zonasCamara[i];
-
       // Marco amarillo de la zona
       noFill();
       stroke(255, 255, 0);
-      rect(zona.x, zona.y, zona.ancho, zona.alto);
+      rect(zonaX[i], zonaY[i], zonaAncho, zonaAlto);
 
-      // Qué ha detectado y cuál es la forma secreta
+      // Números y formas
       noStroke();
       fill(255, 255, 0);
-      text("Casilla " + (i + 1), zona.x + 5, zona.y + 20);
-      text("veo: " + formasDetectadas[i], zona.x + 5, zona.y + 40);
-      text("secreta: " + formasObjetivo[i], zona.x + 5, zona.y + 60);
+      text("puntos negros: " + puntosNegros[i], zonaX[i] + 5, zonaY[i] + 20);
+      text("veo: " + formasVistas[i], zonaX[i] + 5, zonaY[i] + 40);
+      text("secreta: " + formasSecretas[i], zonaX[i] + 5, zonaY[i] + 60);
     }
 
-    // Posición del ratón, para saber qué números poner en zonasCamara
-    text("ratón  x: " + mouseX + "  y: " + mouseY, 10, 500);
+    // Dónde está el dedo o el ratón, para ajustar zonaX y zonaY
+    text("x: " + mouseX + "  y: " + mouseY, 10, 500);
   }
 }

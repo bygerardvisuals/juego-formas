@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Juego de formas</title>
+
+  <style>
+    body { margin: 0; background: black; overflow: hidden; }
+
+    /* El dibujo se estira para llenar la pantalla, sea un móvil o un proyector,
+       sin tener que cambiar ningún número del código. */
+    canvas {
+      width: 100vw !important;
+      height: 100vh !important;
+      height: 100dvh !important;
+      object-fit: contain;
+    }
+  </style>
+
+  <!-- p5.js: https://p5js.org/reference/ -->
+  <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
+
+  <!-- OpenCV.js: https://docs.opencv.org/4.x/d0/d84/tutorial_js_usage.html
+       Es un archivo grande y tarda unos segundos en cargar. -->
+  <script src="https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.8.0-release.10/dist/opencv.js"></script>
+</head>
+
+<body>
+  <!-- El código del juego está en sketch.js -->
+  <script src="sketch.js"></script>
+</body>
+</html>

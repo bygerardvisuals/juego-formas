@@ -33,7 +33,8 @@
 // 1. NÚMEROS QUE PUEDES CAMBIAR
 // ---------------------------------------------------------------------
 
-// true = ver también los números y las formas secretas.  false = jugar.
+// MODO PRUEBA: en cada casilla enseña la forma que ESPERA y los puntos negros.
+// true = se ve siempre.  false = solo se ve mientras tocas la pantalla.
 let modoPrueba = true;
 
 // Lo más oscuro que este número (de 0 a 255) cuenta como punto negro.
@@ -188,7 +189,13 @@ function draw() {
   }
 
   // ---- PASO 6: pintar el verde y escribir los textos ----
-  textSize(24);
+  textSize(22);
+
+  // El modo prueba se ve si modoPrueba es true
+  // o mientras tocas la pantalla con el dedo
+  let verPrueba = false;
+  if (modoPrueba) { verPrueba = true; }
+  if (mouseIsPressed) { verPrueba = true; }
 
   if (hayCruz == false) {
     stroke(0);
@@ -207,22 +214,22 @@ function draw() {
         rect(zonaX[i], zonaY[i], zonaTamano, zonaTamano);
       }
 
-      // Nombre de la forma, en letras blancas con borde negro
+      // La forma que ve, en letras blancas con borde negro
       stroke(0);
       strokeWeight(4);
       fill(255);
-      text(formasVistas[i], zonaX[i] + 10, zonaY[i] + 30);
+      text("veo: " + formasVistas[i], zonaX[i] + 5, zonaY[i] + 30);
 
-      // En modo prueba, también los puntos negros y la forma secreta
-      if (modoPrueba) {
+      // En modo prueba, también la forma que espera y los puntos negros
+      if (verPrueba) {
         fill(255, 255, 0);
-        text(puntosNegros[i], zonaX[i] + 10, zonaY[i] + 60);
-        text(formasSecretas[i], zonaX[i] + 10, zonaY[i] + 90);
+        text("espera: " + formasSecretas[i], zonaX[i] + 5, zonaY[i] + 60);
+        text("puntos: " + puntosNegros[i], zonaX[i] + 5, zonaY[i] + 90);
       }
     }
   }
 
-  if (modoPrueba) {
+  if (verPrueba) {
     stroke(0);
     strokeWeight(4);
     fill(255, 255, 0);
